@@ -1,0 +1,96 @@
+Menu="Utilities"
+Title="Hailo RT Driver"
+Icon="hailort-driver.png"
+---
+<?php
+//Get selected driver version
+$selected_v = shell_exec("/usr/local/emhttp/plugins/hailort-driver/include/exec.sh get_selected_version");
+
+//Update driver versions and create file '/tmp/hailort_driver'
+shell_exec('/usr/local/emhttp/plugins/hailort-driver/include/exec.sh update');
+
+//Get latest version
+$latest_v = shell_exec('/usr/local/emhttp/plugins/hailort-driver/include/exec.sh get_latest_version');
+
+//Get current installed driver version
+$installed_v = shell_exec('/usr/local/emhttp/plugins/hailort-driver/include/exec.sh get_installed_version');
+
+//Get driver versions
+$filename = "/tmp/hailort_driver";
+$drivers = file($filename, FILE_IGNORE_NEW_LINES);
+?>
+
+<script>
+    //Don't execute commands again if page is refreshed
+    if ( window.history.replaceState ) {
+        window.history.replaceState( null, null, window.location.href );
+    }
+</script>
+
+<script>
+function changeVersion(form) {
+    var package = form.drv_version.value;
+    openBox("/usr/local/emhttp/plugins/hailort-driver/include/exec.sh&arg1=update_version&arg2="+package,"Downloading Package",600,800,true);
+    return false;
+    }
+</script>
+
+<style>
+table tbody td {
+    line-height:normal
+}
+</style>
+
+<h1 style="text-align: center;"><a href="https://forums.unraid.net/topic/92865-support-ich777-amd-vendor-reset-coraltpu-hpsahba/" target="_blank" rel="noopener"><span style="color: light-blue;">Hailo RT Driver</span></a></h1>
+<br/>
+
+<div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;">
+
+<div style="width: 47%; min-width: 400px; max-width: 1260px; flex-wrap: wrap; margin: 10px;">
+<p><b><font size="+1">Hailo Info:</font></b></p>
+            <p>Hailo Driver Version: 
+            <b style="color:green"><?php echo $installed_v; ?></b></p>
+          <br/>
+        </tr>
+    </table>
+</div>
+
+<div style="width: 47%; min-width: 400px; max-width: 1260px; margin: 10px;">
+<p><b><font size="+1">Select preferred driver version:</font></b></p>
+<br/>
+    <table>
+            <form id="s" method="post" >
+              <tr>
+                <td><b>Latest Versions:</b></td>
+                <td>
+                    <p><input type="radio" name="drv_version" value="latest" <?php echo ( $selected_v == "latest") ? 'checked="checked"' : ''; ?><font><b>latest</font>:</b> <?php echo "v$latest_v"; ?> </p>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Available Versions:</b></td><td>
+                    <?php
+                    krsort($drivers);
+                    foreach($drivers as $lines){
+                    $arr = explode(" ", $lines);
+                    $lines2 = implode(" ", $arr);
+					          ?>
+                    <p>
+						<input type="radio" name="drv_version" value="<?php echo $lines2;?>" <?php echo ( $selected_v == $lines2) ? 'checked="checked"' : '' ?>/> 
+						v<?php echo $lines2;?>
+					          </p>
+                    <?php
+					          }
+                    ?>
+                </td>
+              <tr>
+                <td>
+                </td>
+                <td>
+                    <input type="button" value="Update & Download" onclick="changeVersion(this.form)">
+                </td>
+            </tr>
+            </form>
+            </table>
+</div>
+</div>
+
