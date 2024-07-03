@@ -1,0 +1,231 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+  <!ENTITY name      "hailort-driver">
+  <!ENTITY author    "ich777">
+  <!ENTITY version   "2024.07.03">
+  <!ENTITY md5       "3db4fc26526f895e2862232745d49892">
+  <!ENTITY launch    "Settings/&name;">
+  <!ENTITY gitURL    "https://github.com/&author;/unraid-&name;/raw/master">
+  <!ENTITY pluginURL "&gitURL;/&name;.plg">
+  <!ENTITY plugin    "/boot/config/plugins/&name;">
+  <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
+  <!ENTITY packages  "/boot/config/plugins/&name;/packages">
+]>
+
+<PLUGIN  name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.12.10" support="https://forums.unraid.net/topic/92865-support-ich777-amd-vendor-reset-coraltpu-hpsahba/">
+
+<CHANGES>
+
+###2024.07.03
+- Initial release
+
+</CHANGES>
+
+<FILE Run="/bin/bash">
+<INLINE>
+rm -f $(ls /boot/config/plugins/&name;/&name;*.txz 2>/dev/null|grep -v '&version;')
+</INLINE>
+</FILE>
+
+<FILE Name="&plugin;/&name;-&version;.txz" Run="upgradepkg --install-new">
+<URL>&gitURL;/packages/&name;-&version;.txz</URL>
+<MD5>&md5;</MD5>
+</FILE>
+
+<FILE Name="&emhttp;/README.md">
+<INLINE>
+**Hailo RT Driver**
+  
+The Hailo RT (Real-Time) is a specialized AI processor designed to deliver high-performance and efficient edge computing capabilities. It excels in performing real-time AI inference tasks, making it ideal for applications such as video analytics, autonomous vehicles, and industrial IoT.  
+  
+This plugin provides the necessary drivers to leverage the Hailo RT processor, enhancing the performance and efficiency of AI-driven edge computing tasks on supported hardware.
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE>
+
+download() {
+# Download Module Drivers
+if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PACKAGE}" "${DL_URL}/${PACKAGE}" ; then
+  wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PACKAGE}.md5" "${DL_URL}/${PACKAGE}.md5"
+  if [ "$(md5sum &packages;/${KERNEL_V%%-*}/${PACKAGE} | awk '{print $1}')" != "$(cat &packages;/${KERNEL_V%%-*}/${PACKAGE}.md5 | awk '{print $1}')" ]; then
+    echo
+    echo "---CHECKSUM ERROR!---"
+    rm -rf &plugin; &emhttp;
+    exit 1
+  fi
+  echo
+  echo "----------Successfully downloaded Hailo RT Module Drivers----------"
+else
+  echo
+  echo "---------------Can't download Hailo RT Module Drivers--------------"
+  rm -rf &plugin; &emhttp;
+  exit 1
+fi
+}
+
+check() {
+if [ "${SET_DRV_V}" == "latest" ]; then
+  AVAIL_DRIVERS="$(wget -qO- https://api.github.com/repos/ich777/unraid-hailort-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep -E -v '\.md5$')"
+  PACKAGE="$(echo "${AVAIL_DRIVERS}" | sort -V | tail -1)"
+  if [ -z "${PACKAGE}" ]; then
+    if [ -z "${CUR_V}" ]; then
+      echo
+      echo "---ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR---"
+      echo "-----Can't get latest driver version and found no local driver-----"
+      rm -rf &plugin; &emhttp;
+      exit 1
+    else
+      echo
+      echo "------Can't get driver version, falling back to local version------"
+      PACKAGE=${CUR_V}
+    fi
+  else
+    if [ -z "${CUR_V}" ]; then
+      echo
+      echo "---------Hailo RT Module Drivers not found, downloading...---------"
+      download
+    else
+      if [ "${CUR_V}" != "${PACKAGE}" ]; then
+        echo
+        echo "--------Newer Hailo RT Module Drivers found, downloading...---------"
+        download
+      else
+        echo "-----------------Hailo RT Module Drivers up-to-date-----------------"
+      fi
+    fi
+  fi
+else
+  if ! grep -q "${SET_DRV_V}" &lt;&lt;&lt; "${CUR_V}" ; then
+    AVAIL_DRIVERS="$(wget -qO- https://api.github.com/repos/ich777/unraid-hailort-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep -E -v '\.md5$')"
+    PACKAGE="$(echo "${AVAIL_DRIVERS}" | grep "${SET_DRV_V}" | tail -1)"
+    echo
+    echo "---------Driver version: ${SET_DRV_V} not found, downloading...---------"
+    if [ -z "${PACKAGE}" ]; then
+      echo
+      echo "-----Can't get driver version ${SET_DRV_V} for this Unraid version!-----"
+      echo "-------Falling back to latest driver version, downloading...--------"
+      PACKAGE="$(echo "${AVAIL_DRIVERS}" | sort -V | tail -1)"
+      sed -i '/driver_version=/c\driver_version=latest' "&plugin;/settings.cfg"
+      download
+    fi
+  else
+    echo
+    echo "---------------Hailo RT Module Drivers locally found---------------"
+    PACKAGE="${CUR_V}"
+  fi
+fi
+}
+
+install() {
+# Install Module Drivers
+/sbin/installpkg "&packages;/${KERNEL_V%%-*}/${PACKAGE}*.txz"
+depmod -a
+}
+
+activate() {
+# Modprobe modules
+/sbin/modprobe hailo_pci
+}
+
+#Create settings file if not found
+if [ ! -f "&plugin;/settings.cfg" ]; then
+  echo 'driver_version=latest' > "&plugin;/settings.cfg"
+fi
+
+# Define Variables
+KERNEL_V="$(uname -r)"
+PACKAGE="hailort_driver"
+SET_DRV_V="$(grep "driver_version" "&plugin;/settings.cfg" | cut -d '=' -f2 | sed 's/\"//g')"
+DL_URL="https://github.com/ich777/unraid-hailort-driver/releases/download/$KERNEL_V"
+
+#Create directory if not found
+if [ ! -d "&packages;/${KERNEL_V%%-*}" ]; then
+  mkdir -p "&packages;/${KERNEL_V%%-*}"
+  CUR_V=""
+else
+  CUR_V="$(ls -p &packages;/${KERNEL_V%%-*} 2&gt;/dev/null | grep -E -v '\.md5' | sort -V | tail -1)"
+fi
+
+#Check for old packages
+rm -rf $(ls -d &packages;/* | grep -v "${KERNEL_V%%-*}")
+
+#Check if version matches
+check
+
+#Check if drivers are available or need to be installed
+if ! modinfo hailo_pci -0 >/dev/null 2>&amp;1 ; then
+  install > /dev/null
+fi
+
+#Check if drivers are already loaded
+if ! lsmod | grep "hailo_pci" >/dev/null 2>&amp;1 ; then
+  activate
+fi
+
+#Check if Plugin Update Helper is downloaded and up-to-date
+if [ ! -f &plugin;/plugin_update_helper ]; then
+  wget -q -T 5 -O &plugin;/plugin_update_helper "https://raw.githubusercontent.com/ich777/unraid-plugin_update_helper/master/plugin_update_helper"
+else
+  CUR_V="$(grep -E "Plugin-Update-Helper version:" &plugin;/plugin_update_helper | awk '{print $4}')"
+  if [ ! -s /tmp/update-helper ]; then
+    echo "$(wget -T5 -qO- https://raw.githubusercontent.com/ich777/unraid-plugin_update_helper/master/plugin_update_helper | grep -E "Plugin-Update-Helper version:" | awk '{print $4}')" > /tmp/update-helper
+    AVAIL_V="$(cat /tmp/update-helper)"
+  else
+    AVAIL_V="$(cat /tmp/update-helper)"
+  fi
+  if [ ! -z "$AVAIL_V" ]; then
+    COMPARE="$(sort -V &lt;(echo -e "${AVAIL_V}\n$CUR_V") | tail -1)"
+    if [ "$CUR_V" != "$COMPARE" ]; then
+      wget -q -T 5 -O &plugin;/plugin_update_helper "https://raw.githubusercontent.com/ich777/unraid-plugin_update_helper/master/plugin_update_helper"
+    fi
+  fi
+fi
+
+#Check if Plugin Update Helper is installed and up to date
+if [ ! -f /usr/bin/plugin_update_helper ]; then
+  cp &plugin;/plugin_update_helper /usr/bin/plugin_update_helper
+  chmod +x /usr/bin/plugin_update_helper
+else
+  PLUGIN_V="$(grep -E "Plugin-Update-Helper version:" &plugin;/plugin_update_helper | awk '{print $4}')"
+  INST_V="$(grep -E "Plugin-Update-Helper version:" /usr/bin/plugin_update_helper | awk '{print $4}')"
+  COMPARE="$(sort -V &lt;(echo -e "${PLUGIN_V}\n$INST_V") | tail -1)"
+  if [ "$INST_V" != "$COMPARE" ]; then
+    kill $(ps aux | grep -E "inotifywait -q /boot/changes.txt -e move_self,delete_self" | grep -v "grep -E inotifywait" | awk '{print $2}') 2>/dev/null
+    sleep 1
+    cp &plugin;/plugin_update_helper /usr/bin/plugin_update_helper
+    chmod +x /usr/bin/plugin_update_helper
+  fi
+fi
+
+#Start Plugin Update Helper
+if [ -z "$(ps aux | grep -E "inotifywait -q /boot/changes.txt -e move_self,delete_self" | grep -v "grep -E inotifywait" | awk '{print $2}')" ]; then
+  echo "/usr/bin/plugin_update_helper" | at now &gt; /dev/null 2&gt;&amp;1
+fi
+
+echo
+echo "--------Installation of Hailo RT Module Drivers successful---------"
+echo
+
+</INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+
+echo "------------------------------------------"
+echo "---Uninstalling Hailo RT Module Drivers---"
+echo "------------------------------------------"
+# Remove plugin related files
+rm -rf &emhttp;
+rm -rf &plugin;
+echo
+echo "---------------------------------------------------------------------"
+echo "---Hailo RT Module Drivers uninstalled, please reboot your server!---"
+echo "---------------------------------------------------------------------"
+echo
+
+</INLINE>
+</FILE>
+</PLUGIN>
