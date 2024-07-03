@@ -120,7 +120,7 @@ fi
 
 install() {
 # Install Module Drivers
-/sbin/installpkg "&packages;/${KERNEL_V%%-*}/${PACKAGE}*.txz"
+/sbin/installpkg "&packages;/${KERNEL_V%%-*}/hailort_driver-*.txz"
 depmod -a
 }
 
@@ -218,6 +218,7 @@ echo "------------------------------------------"
 echo "---Uninstalling Hailo RT Module Drivers---"
 echo "------------------------------------------"
 # Remove plugin related files
+removepkg &name;-&version;
 rm -rf &emhttp;
 rm -rf &plugin;
 echo
