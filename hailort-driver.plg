@@ -218,7 +218,7 @@ echo "------------------------------------------"
 echo "---Uninstalling Hailo RT Module Drivers---"
 echo "------------------------------------------"
 # Remove plugin related files
-removepkg &name;-&version;
+removepkg &name;-&version; &gt; /dev/null 2&gt;&amp;1
 rm -rf &emhttp;
 rm -rf &plugin;
 echo
