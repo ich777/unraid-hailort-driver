@@ -1,0 +1,103 @@
+Menu="Dashboard:0"
+---
+<?php
+$hailo_devices = json_decode(shell_exec("/usr/bin/hailostatus -json"), true);
+$hailo_count = count($hailo_devices);
+
+if ($hailo_count > 1) {
+  $hailoplural = "s";
+} else {
+  $hailoplural = "";
+}
+
+$pluginname = "Hailo RT Driver";
+
+$layout = HailoLayout() ;
+
+$mytiles[$pluginname]['column2'] =
+<<<EOT
+<tbody id="lxc" title="$pluginname">
+<tr><td><i class='fa fa-microchip f32'></i><div class='section'>$pluginname<span><br>Hailo RT Device$hailoplural installed: $hailo_count</span><br></div>
+<a href="Dashboard/Settings/hailort-driver" title="_(Go to LXC settings)_"><i class="fa fa-fw fa-cog control"></i></a></td></tr></td></tr>
+<tr><td>
+$layout
+</td></tr>
+</tbody>
+EOT;
+
+function HailoLayout() {
+  $hailo_devices = json_decode(shell_exec("/usr/bin/hailostatus -json"), true);
+  $page_render = '';
+
+  if (count($hailo_devices) == 0) {
+    $page_render .= '<span id="no_tpu_installed">No Hailo RT Devices found!</span>';
+    return $page_render;
+  }
+
+  $page_render .= '<tr class="header"><td>';
+  $page_render .= '<span class="w18">Device</span>';
+  $page_render .= '<span class="w18">Status</span>';
+  $page_render .= '<span class="w18">Power</span>';
+  $page_render .= '<span class="w18">Temp 1</span>';
+  $page_render .= '<span class="w18">Temp 2</span>';
+  $page_render .= '</td></tr>';
+	foreach ($hailo_devices as $hailo_device) {
+    $page_render .= '<tr class="header"><td>';
+    $page_render .= '<span class="w18"><b style="color: #ff5e4d; text-transform: lowercase;">' . str_replace('_', '/', $hailo_device['device']) . '</b></span>';
+    if(isset($hailo_device['error'])) {
+      $page_render .= '<span class="w18"><b style="color: red;">ERROR</b></b></span>';
+      $page_render .= '<span class="w18"><b>-</b></span>';
+      $page_render .= '<span class="w18"><b>-</b></span>';
+      $page_render .= '<span class="w18"><b>-</b></span>';
+      $page_render .= '</td></tr>';
+    } else {
+      $page_render .= '<span class="w18"><b style="color: green;">Online</b></b></span>';
+      if($hailo_device['device_information']['supported_features']['current_monitoring'] == 'true' ) {
+    	  $type = $hailo_device['power_measurements']['type'];
+        if($type === 'shunt_voltage' || $type === 'bus_voltage') {
+          $units = 'mV';
+        } elseif($type === 'power' || $type === 'auto') {
+          $units = 'W';
+        } else {
+          $units = 'mW';
+        }
+  	    $page_render .= '<b><span class="w18" id=">' . $hailo_device . '_power">' . round($hailo_device['power_measurements']['value'], 2) . ' ' . $units . '</b></span>';
+      } else {
+        $page_render .= '<span class="w18"><b>N/A</b></span>';
+      }
+      if(isset($hailo_device['chip_temperature']['s0'])){
+        $page_render .= '<b><span class="w18" id="' . str_replace('/', '_', $hailo_device['device']) . '_temp_s0">' . round($hailo_device['chip_temperature']['s0'], 2) . ' °C</b></span>';
+      } else {
+        $page_render .= '<span class="w18"><b>N/A</b></span>';
+      }
+      if(isset($hailo_device['chip_temperature']['s1'])){
+        $page_render .= '<b><span class="w18" id="' . str_replace('/', '_', $hailo_device['device']) . '_temp_s1">' . round($hailo_device['chip_temperature']['s1'], 2) . ' °C</b></span>';
+      } else {
+        $page_render .= '<span class="w18"><b>N/A</b></span>';
+      }
+      $page_render .= '</td></tr>';
+    }
+  }
+  return $page_render;
+}
+?>
+
+<script>
+  function updateValues() {
+    $.ajax({
+      url: '/plugins/hailort-driver/include/hailo_status.php',
+      method: 'GET',
+      dataType: 'json',
+      success: function(data) {
+        data.forEach(function(device) {
+         var deviceId = device.device_id;
+         $('#' + deviceId + '_frequencyMHz').html(device._frequencyMHz);
+         $('#' + deviceId + '_power').html(device.power);
+         $('#' + deviceId + '_temp_s0').html(device.temp_s0);
+         $('#' + deviceId + '_temp_s1').html(device.temp_s1);
+       });
+     }
+    });
+  }
+  setInterval(updateValues, 5000);
+</script>
