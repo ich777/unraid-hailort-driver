@@ -18,9 +18,6 @@ $installed_v = shell_exec('/usr/local/emhttp/plugins/hailort-driver/include/exec
 //Get driver versions
 $filename = "/tmp/hailort_driver";
 $drivers = file($filename, FILE_IGNORE_NEW_LINES);
-
-//Get devices:
-$hailo_devices = json_decode(shell_exec("/usr/bin/hailostatus -json"), true);
 ?>
 
 <script>
@@ -91,81 +88,4 @@ table tbody td {
       </table>
     </div>
   </div>
-
-<?php
-if(empty($hailo_devices)) {
-	echo '<p>&nbsp;</p><h2 style="text-align: center;"><strong><span style="color: #ff0000;">No Hailo RT Devices found!</span><br /></strong></h1>';
-} else {
-	echo '<div style="display: flex; flex-wrap: wrap; justify-content: center;">';
-	foreach ($hailo_devices as $hailo_device) {
-	  $hailoDevices[] = $hailo_device['device'];
-		echo '<div style="width: 33%; height: 430px; border: 1px solid #ccc; margin: 5px; box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);">';
-		echo '<b style="color: #486dba; font-size: larger;">Device ' . $hailo_device['device'] . ':</b>';
-		echo '<div style="padding: 20px;">';
-		echo '<span style="padding: 10px;"><table style="width: 80%; text-align: left; line-height: 0.5;">';
-		if(isset($hailo_device['error'])) {
-		  echo '<tr><td>Status:</td><td><b style="color: red;">ERROR: ' . $hailo_device['error'] . '</b></td></tr>';;
-		} else {
-		  echo '<tr><td>Status:</td><td><b style="color: green;">Online</b></td></tr>';
-  		echo '<tr><td>Board Name:</td><td>' . $hailo_device['device_identity']['board_name'] . '</b></td></tr>';
-  		echo '<tr><td>Board Architecture:</td><td>' . $hailo_device['device_identity']['device_architecture'] . '</b></td></tr>';
-  		echo '<tr><td>Board S/N:</td><td>' . $hailo_device['device_identity']['serial_number'] . '</b></td></tr>';
-  		echo '</tr>';
-  		echo '<tr><td>Driver Version:</td><td>' . $hailo_device['driver_version'] . '</td></tr>';
-  		if($hailo_device['device_properties']['is_fw_loaded'] == 'true' ) {
-  		  echo '<tr><td>Firmware Version/Loaded:</td><td>' . $hailo_device['device_identity']['firmware_version']['version'] . ' <input type="checkbox" checked disabled></td></tr>';
-  		} else {
-  		  echo '<tr><td>Firmware Version/Loaded:</td><td>N/A <input type="checkbox" disabled></td></tr>';
-  		}
-  		echo '<tr><td>Protocol Version:</td><td>' . $hailo_device['device_identity']['protocol_version'] . '</td></tr>';
-  		echo '<tr><td>Mode:</td><td>' . $hailo_device['device_identity']['firmware_version']['mode'] . '</td></tr>';
-  		echo '<tr><td>Firmware Type:</td><td>' . $hailo_device['device_identity']['firmware_version']['firmware_type'] . '</td></tr>';
-      $frequencyMHz = $hailo_device['device_information']['neural_network_core_clock_rate'] / 1000000;
-  		echo '<tr><td>Frequency:</td><td id="' . str_replace('/', '_', $hailo_device['device']) . '_frequenzy">' . $frequencyMHz . ' MHz</b></td></tr>';
-      echo '<tr><td>Sample Count/Maximum Page Size:</td><td>' . $hailo_device['chip_temperature']['sample_count'] . ' / ' . $hailo_device['device_properties']['desc_max_page_size'] . '</b></td>';
-  		if($hailo_device['device_information']['supported_features']['current_monitoring'] == 'true' ) {
-  		  $type = $hailo_device['power_measurements']['type'];
-        if($type === 'shunt_voltage' || $type === 'bus_voltage') {
-          $units = 'mV';
-        } elseif($type === 'power' || $type === 'auto') {
-          $units = 'W';
-        } else {
-          $units = 'mW';
-        }
-  		  echo '<tr><td>Power Draw:</td><td id="' . $hailo_device . '_power">' . round($hailo_device['power_measurements']['value'], 2) . ' ' . $units . '</b></td>';
-      }
-  		if(isset($hailo_device['chip_temperature']['s0'])){
-  		  echo '<tr><td>Temperature:</td><td>Sensor 1:</td><td id="' . str_replace('/', '_', $hailo_device['device']) . '_temp_s0">' . round($hailo_device['chip_temperature']['s0'], 2) . ' °C</b></td>';
-  		}
-  		if(isset($hailo_device['chip_temperature']['s1'])){
-    		echo '<tr><td><nbsp;></td><td>Sensor 2:</td><td id="' . str_replace('/', '_', $hailo_device['device']) . '_temp_s1">' . round($hailo_device['chip_temperature']['s1'], 2) . ' °C</b></td>';
-      }
-		}
-		echo '</table></span>';
-		echo '</div>';
-		echo '</div>';
-	}
-}
-?>
-
 </div>
-
-<script>
-  function updateValues() {
-    $.ajax({
-      url: '/plugins/hailort-driver/include/hailo_status.php',
-      method: 'GET',
-      dataType: 'json',
-      success: function(data) {
-        data.forEach(function(device) {
-         var deviceId = device.device_id;
-         $('#' + deviceId + '_frequencyMHz').html(device._frequencyMHz);
-         $('#' + deviceId + '_power').html(device.power);
-         $('#' + deviceId + '_temp_s0').html(device.temp_s0);
-         $('#' + deviceId + '_temp_s1').html(device.temp_s1);
-       });
-     }
-    });
-  }
-  setInterval(updateValues, 5000);
-</script>
